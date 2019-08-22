@@ -95,11 +95,46 @@ def get_stat(l):
 
     return {"max":max,"min":min,"median":med,"average":avg,"std":std}
 
-def generate_flow(s, ip):
+def generate_flow_size(s, ip):
+    upstream = {}
+    downstream = {}
+    up_total_size = 0
+    up_total_count = 0
+    down_total_size = 0
+    down_total_count = 0
+    for p in s:
+        # key = int(float(p.time_stamp))
+        key = float(p.time_stamp)
+        if p.src == ip:
+            # downstream
+            try:
+                downstream[key] -= len(p.data)
+            except:
+                downstream[key] = -len(p.data)
+                upstream[key] = 0
+            down_total_size += len(p.data)
+            down_total_count  += 1
+        if p.dst == ip:
+            # upstream
+            try:
+                upstream[key] += len(p.data)
+            except:
+                upstream[key] = len(p.data)
+                downstream[key] = 0
+            up_total_size += len(p.data)
+            up_total_count  += 1
+
+    print("Upstream average: " + str(up_total_size / up_total_count))
+    print("Downstream average: " + str(down_total_size / down_total_count))
+
+    return upstream, downstream
+
+def generate_flow_count(s, ip):
     upstream = {}
     downstream = {}
     for p in s:
-        key = int(float(p.time_stamp))
+        # key = int(float(p.time_stamp))
+        key = float(p.time_stamp)
         if p.src == ip:
             # downstream
             try:
@@ -117,9 +152,9 @@ def generate_flow(s, ip):
 
     return upstream, downstream
 
-def plot_flow(client, client_high, source, source_high):
-    up_c, down_c = generate_flow(client, client_high)
-    up_s, down_s = generate_flow(source, source_high)
+def plot_flow_size(client, client_high, source, source_high):
+    up_c, down_c = generate_flow_size(client, client_high)
+    up_s, down_s = generate_flow_size(source, source_high)
 
     x_data_c = list(up_c.keys())
     y_up_c = list(up_c.values())
@@ -131,13 +166,16 @@ def plot_flow(client, client_high, source, source_high):
 
     fig, axs = plt.subplots(2)
 
-    axs[0].plot(x_data_c, y_up_c, label="Upstream")
-    axs[0].plot(x_data_c, y_down_c, label="Downstream", linestyle='--')
+    x_lim = [x_data_s[0], x_data_c[-1]]
+
+    axs[0].plot(x_data_c, y_up_c, label="Upstream", linestyle='--')
+    axs[0].plot(x_data_c, y_down_c, label="Downstream")
     axs[0].plot(x_data_c, [0]*len(x_data_c), linestyle=':')
 
     axs[0].set_title("Time Series on Client side")
     axs[0].set_xlabel('Time Stamps')
-    axs[0].set_ylabel('Number of Packets\nDownstream (negative) | Upstream(positive)')
+    axs[0].set_xlim(x_lim)
+    axs[0].set_ylabel('Traffic Size\nDownstream (negative) | Upstream(positive)')
     axs[0].legend()
 
     axs[1].plot(x_data_s, y_up_s, label="Upstream")
@@ -146,7 +184,46 @@ def plot_flow(client, client_high, source, source_high):
 
     axs[1].set_title("Time Series on Source side")
     axs[1].set_xlabel('Time Stamps')
-    axs[1].set_ylabel('Number of Packets\nDownstream (negative) | Upstream(positive)')
+    axs[1].set_xlim(x_lim)
+    axs[1].set_ylabel('Traffic Size\nDownstream (negative) | Upstream(positive)')
+    axs[1].legend()
+
+    plt.show()
+
+def plot_flow_count(client, client_high, source, source_high):
+    up_c, down_c = generate_flow_count(client, client_high)
+    up_s, down_s = generate_flow_count(source, source_high)
+
+    x_data_c = list(up_c.keys())
+    y_up_c = list(up_c.values())
+    y_down_c = list(down_c.values())
+
+    x_data_s = list(up_s.keys())
+    y_up_s = list(up_s.values())
+    y_down_s = list(down_s.values())
+
+    fig, axs = plt.subplots(2)
+
+    x_lim = [x_data_s[0], x_data_c[-1]]
+
+    axs[0].plot(x_data_c, y_up_c, label="Upstream", linestyle='--')
+    axs[0].plot(x_data_c, y_down_c, label="Downstream")
+    axs[0].plot(x_data_c, [0]*len(x_data_c), linestyle=':')
+
+    axs[0].set_title("Time Series on Client side")
+    axs[0].set_xlabel('Time Stamps')
+    axs[0].set_xlim(x_lim)
+    axs[0].set_ylabel('Traffic Size\nDownstream (negative) | Upstream(positive)')
+    axs[0].legend()
+
+    axs[1].plot(x_data_s, y_up_s, label="Upstream")
+    axs[1].plot(x_data_s, y_down_s, label="Downstream", linestyle='--')
+    axs[1].plot(x_data_s, [0]*len(x_data_s), linestyle=':')
+
+    axs[1].set_title("Time Series on Source side")
+    axs[1].set_xlabel('Time Stamps')
+    axs[1].set_xlim(x_lim)
+    axs[1].set_ylabel('Traffic Size\nDownstream (negative) | Upstream(positive)')
     axs[1].legend()
 
     plt.show()
@@ -185,12 +262,9 @@ for s in p_s:
         if s.dst == p_s.ip:
             source_count[s.src] = 1
 
-print(client_count)
-
+# get the highest count as target of interest
 h_c = sorted(client_count.items(), key=lambda x:x[1], reverse=True)[0]
-
-print(source_count)
-
 h_s = sorted(source_count.items(), key=lambda x:x[1], reverse=True)[0]
 
-plot_flow(p_c, h_c[0], p_s, h_s[0])
+plot_flow_size(p_c, h_c[0], p_s, h_s[0])
+plot_flow_count(p_c, h_c[0], p_s, h_s[0])
